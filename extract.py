@@ -5,6 +5,7 @@ import io
 import os
 import zipfile
 import xml.etree.ElementTree as ET
+import base64
 
 
 def emu_to_pixels(emu):
@@ -98,6 +99,140 @@ def is_overlay(base_rect, overlay_rect):
     ox, oy, ow, oh = overlay_rect
 
     return ox >= bx and oy >= by and ox + ow <= bx + bw and oy + oh <= by + bh
+
+
+def image_to_base64(pil_image):
+    """Convert PIL Image to base64 string."""
+    buffered = io.BytesIO()
+    pil_image.save(buffered, format="PNG")
+    img_bytes = buffered.getvalue()
+    return base64.b64encode(img_bytes).decode('utf-8')
+
+
+def create_svg_with_overlays(base_img, shape_overlays, scale_x, scale_y):
+    """
+    Create an SVG string with the base image and shape overlays.
+    The base image is embedded as base64, and shapes are rendered as SVG elements.
+    """
+    img_width = base_img['pil_image'].width
+    img_height = base_img['pil_image'].height
+
+    # Convert base image to base64
+    base64_img = image_to_base64(base_img['pil_image'])
+
+    # Start SVG
+    svg_parts = [
+        f'<?xml version="1.0" encoding="UTF-8"?>',
+        f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{img_width}" height="{img_height}" viewBox="0 0 {img_width} {img_height}">',
+        f'  <!-- Base Image -->',
+        f'  <image id="base-image" xlink:href="data:image/png;base64,{base64_img}" width="{img_width}" height="{img_height}" x="0" y="0"/>',
+        f'  <!-- Shape Overlays -->',
+        f'  <g id="overlays">',
+    ]
+
+    # Add each shape as SVG element
+    for idx, shape in enumerate(shape_overlays):
+        # Calculate position in the coordinate system
+        rel_x = shape['abs_x'] - base_img['abs_x']
+        rel_y = shape['abs_y'] - base_img['abs_y']
+
+        # Apply scaling
+        rel_x = int(rel_x * scale_x)
+        rel_y = int(rel_y * scale_y)
+        width_scaled = int(shape['width'] * scale_x)
+        height_scaled = int(shape['height'] * scale_y)
+
+        geometry = shape.get('geometry', 'rect')
+        shape_name = shape.get('name', f'shape-{idx}')
+
+        # Get fill color
+        fill_style = 'none'
+        fill_opacity = 1.0
+        if shape.get('fill_color'):
+            fill_style = shape['fill_color']
+            if 'fill_alpha' in shape:
+                fill_opacity = shape['fill_alpha'] / 255.0
+
+        # Get outline color
+        stroke_style = 'none'
+        stroke_width = 0
+        if shape.get('outline_color'):
+            stroke_style = shape['outline_color']
+            stroke_width = max(1, int(shape.get('outline_width', 1) * scale_x))
+
+        svg_parts.append(f'    <!-- Shape: {shape_name} -->')
+        svg_parts.append(f'    <g id="{shape_name}" class="shape-overlay" data-geometry="{geometry}">')
+
+        # Draw shape based on geometry type
+        if geometry == 'ellipse':
+            cx = rel_x + width_scaled / 2
+            cy = rel_y + height_scaled / 2
+            rx = width_scaled / 2
+            ry = height_scaled / 2
+            svg_parts.append(
+                f'      <ellipse cx="{cx}" cy="{cy}" rx="{rx}" ry="{ry}" '
+                f'fill="{fill_style}" fill-opacity="{fill_opacity}" '
+                f'stroke="{stroke_style}" stroke-width="{stroke_width}"/>'
+            )
+        elif geometry in ['rect', 'rectangle']:
+            svg_parts.append(
+                f'      <rect x="{rel_x}" y="{rel_y}" width="{width_scaled}" height="{height_scaled}" '
+                f'fill="{fill_style}" fill-opacity="{fill_opacity}" '
+                f'stroke="{stroke_style}" stroke-width="{stroke_width}"/>'
+            )
+        elif geometry == 'roundRect':
+            radius = int(10 * scale_x)
+            svg_parts.append(
+                f'      <rect x="{rel_x}" y="{rel_y}" width="{width_scaled}" height="{height_scaled}" '
+                f'rx="{radius}" ry="{radius}" '
+                f'fill="{fill_style}" fill-opacity="{fill_opacity}" '
+                f'stroke="{stroke_style}" stroke-width="{stroke_width}"/>'
+            )
+        elif geometry in ['triangle', 'rtTriangle']:
+            # Triangle points: top center, bottom left, bottom right
+            p1_x = rel_x + width_scaled / 2
+            p1_y = rel_y
+            p2_x = rel_x
+            p2_y = rel_y + height_scaled
+            p3_x = rel_x + width_scaled
+            p3_y = rel_y + height_scaled
+            points = f'{p1_x},{p1_y} {p2_x},{p2_y} {p3_x},{p3_y}'
+            svg_parts.append(
+                f'      <polygon points="{points}" '
+                f'fill="{fill_style}" fill-opacity="{fill_opacity}" '
+                f'stroke="{stroke_style}" stroke-width="{stroke_width}"/>'
+            )
+        else:
+            # Default to rectangle
+            svg_parts.append(
+                f'      <rect x="{rel_x}" y="{rel_y}" width="{width_scaled}" height="{height_scaled}" '
+                f'fill="{fill_style}" fill-opacity="{fill_opacity}" '
+                f'stroke="{stroke_style}" stroke-width="{stroke_width}"/>'
+            )
+
+        # Add text if present
+        if 'text' in shape and shape['text']:
+            font_size_pt = shape.get('font_size_pt', 11.0)
+            scaled_font_size = int(font_size_pt * (scale_x + scale_y) / 2)
+
+            # Center text in shape
+            text_x = rel_x + width_scaled / 2
+            text_y = rel_y + height_scaled / 2
+
+            svg_parts.append(
+                f'      <text x="{text_x}" y="{text_y}" '
+                f'font-size="{scaled_font_size}px" font-family="Arial, sans-serif" '
+                f'text-anchor="middle" dominant-baseline="middle" '
+                f'fill="#000000">{shape["text"]}</text>'
+            )
+
+        svg_parts.append(f'    </g>')
+
+    # Close SVG
+    svg_parts.append(f'  </g>')
+    svg_parts.append(f'</svg>')
+
+    return '\n'.join(svg_parts)
 
 
 def extract_shapes_from_excel(file_path, sheet_name):
@@ -904,17 +1039,33 @@ for sheet_name in wb.sheetnames:
                     f"   ↳ Shape overlay: {shape.get('name', 'Unknown')} ({geometry}) at ({rel_x}, {rel_y})"
                 )
 
-            # Save composite as JPG
-            composite_filename = (
+            # Save as SVG with embedded base image and overlay shapes
+            svg_filename = (
+                f"{base_img['filename'].replace('.png', '')}_with_overlays.svg"
+            )
+            svg_path = os.path.join(overlay_dir, svg_filename)
+
+            # Generate SVG content
+            svg_content = create_svg_with_overlays(base_img, shape_overlays, scale_x, scale_y)
+
+            # Write SVG file
+            with open(svg_path, 'w', encoding='utf-8') as f:
+                f.write(svg_content)
+
+            print(f"   ✓ Saved SVG composite: {svg_filename}")
+
+            # Also save composite as JPG for preview
+            composite_jpg_filename = (
                 f"{base_img['filename'].replace('.png', '')}_with_overlays.jpg"
             )
-            composite_path = os.path.join(overlay_dir, composite_filename)
+            composite_jpg_path = os.path.join(overlay_dir, composite_jpg_filename)
 
             # Convert to RGB for JPEG
             composite_rgb = composite.convert("RGB")
-            composite_rgb.save(composite_path, "JPEG", quality=95)
+            composite_rgb.save(composite_jpg_path, "JPEG", quality=95)
 
-            print(f"   ✓ Saved composite: {composite_filename}")
+            print(f"   ✓ Saved JPG preview: {composite_jpg_filename}")
 
 print(f"\n✅ Individual images saved to: {output_dir}")
-print(f"✅ Images with overlays saved to: {overlay_dir}")
+print(f"✅ SVG files with overlays saved to: {overlay_dir}")
+print(f"   (SVG files contain base64-encoded images + editable SVG shape overlays)")

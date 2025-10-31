@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<ns0:svg xmlns:ns0="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  
+  <ns0:g id="overlays">
+    
+    <ns0:g id="Shape 3" class="shape-overlay" data-geometry="ellipse">
+      <ns0:ellipse cx="503.5" cy="478.5" rx="278.5" ry="313.5" fill="none" fill-opacity="1.0" stroke="#FF0000" stroke-width="4" />
+    </ns0:g>
+    
+    <ns0:g id="Shape 4" class="shape-overlay" data-geometry="rect">
+      <ns0:rect x="246" y="716" width="536" height="235" fill="none" fill-opacity="1.0" stroke="none" stroke-width="0" />
+      <ns0:text x="514.0" y="833.5" font-size="75px" font-family="Arial, sans-serif" text-anchor="middle" dominant-baseline="middle" fill="#000000">Saumya</ns0:text>
+    </ns0:g>
+  </ns0:g>
+</ns0:svg>
