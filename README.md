@@ -472,7 +472,7 @@ pip install openpyxl Pillow
 
 ```bash
 # Generate SVG and JPG files
-python3 gpt.py
+python3 extract.py
 ```
 
 **Output:**
@@ -501,7 +501,7 @@ python3 separate_svg_layers.py
 
 ```
 attemptv2/
-├── gpt.py                          # Main script
+├── extract.py                          # Main script
 ├── extract_svg_components.py       # Utility: inspect SVG structure
 ├── separate_svg_layers.py          # Utility: separate layers
 ├── sample.xlsx                     # Input Excel file
