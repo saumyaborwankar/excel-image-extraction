@@ -4,13 +4,15 @@ Complete solution for extracting images and shape overlays from Excel files and 
 
 ---
 
-## 🎯 Problem Statement
+## Problem Statement
 
 You have Excel files with:
+
 - **Images** embedded in cells
 - **Shapes/drawings** overlaid on top of those images (circles, rectangles, text boxes, etc.)
 
 **Requirements:**
+
 1. Extract the images
 2. Detect which shapes are overlaying which images
 3. Create composite images that show the base image + overlays
@@ -18,7 +20,7 @@ You have Excel files with:
 
 ---
 
-## 📋 How It Works: Step-by-Step
+## How It Works: Step-by-Step
 
 ### **Step 1: Read the Excel File**
 
@@ -43,6 +45,7 @@ def extract_shapes_from_excel(file_path, sheet_name):
 ```
 
 For each shape, we extract:
+
 - **Name** (e.g., "Shape 3", "Shape 4")
 - **Geometry type** (ellipse, rect, roundRect, triangle)
 - **Position** (which cell it starts in + pixel offset)
@@ -56,6 +59,7 @@ For each shape, we extract:
 - **Font size** (stored in hundredths of points, e.g., 1400 = 14pt)
 
 **Example shape data:**
+
 ```python
 {
     'name': 'Shape 4',
@@ -79,6 +83,7 @@ For each shape, we extract:
 ### **Step 3: Convert Excel Coordinates to Pixels**
 
 Excel uses:
+
 - **Cell-based positioning** (column D, row 2)
 - **EMU offsets** (English Metric Units: 914,400 EMU = 1 inch)
 
@@ -96,6 +101,7 @@ def cell_to_pixels(ws, row, col):
 ```
 
 **For each shape:**
+
 ```python
 # Get cell position
 cell_x, cell_y = cell_to_pixels(ws, from_row + 1, from_col + 1)
@@ -130,6 +136,7 @@ for image in ws._images:
 ```
 
 We extract:
+
 - Image position (absolute x, y in pixels)
 - Image size (calculated width/height from Excel cells)
 - **Actual image dimensions** (1024x1024 pixels for example)
@@ -160,6 +167,7 @@ def rectangles_overlap(rect1, rect2):
 ```
 
 **Example:**
+
 ```
 Image at (329, 7) size 191x191
 Shape at (375, 140) size 100x44
@@ -186,6 +194,7 @@ def image_to_base64(pil_image):
 ```
 
 This converts the PNG to a text string like:
+
 ```
 iVBORw0KGgoAAAANSUhEUgAABAAAAAQACAMAAABIw9ux...
 ```
@@ -276,7 +285,7 @@ composite_rgb.save(path, "JPEG", quality=95)
 
 ---
 
-## 📁 Output Files Created
+## Output Files Created
 
 ### Main Outputs
 
@@ -290,71 +299,12 @@ images_with_overlays/
     └── Flattened preview image
 ```
 
-### Separated Layers (via utility scripts)
-
-```
-separated_layers/
-├── D1-F10_with_overlays_base_image.png  (683 KB)
-│   └── Extracted PNG (decoded from base64)
-│
-├── D1-F10_with_overlays_overlays_only.svg  (781 B)
-│   └── Just the shapes, no base image
-│
-├── D1-F10_with_overlays_shape_Shape 3.svg  (438 B)
-│   └── Individual circle shape
-│
-└── D1-F10_with_overlays_shape_Shape 4.svg  (585 B)
-    └── Individual text box shape
-```
-
 ---
 
-## 🔄 How Components Stay Separate
-
-### In the SVG:
-
-1. **Base Image Element:**
-   ```xml
-   <image id="base-image" xlink:href="data:image/png;base64,..."/>
-   ```
-   - Self-contained (base64 encoded)
-   - Can be extracted by decoding base64
-
-2. **Shape Elements:**
-   ```xml
-   <ellipse cx="503.5" cy="478.5" rx="278.5" ry="313.5"
-            fill="none" stroke="#FF0000"/>
-   ```
-   - Native SVG geometry
-   - Fully editable (change colors, positions, sizes)
-   - Can be removed/added
-
-3. **Grouped Separately:**
-   ```xml
-   <g id="overlays">
-     <!-- All shapes here -->
-   </g>
-   ```
-
----
-
-## 💡 Why This Approach Works
-
-### ✅ **Separation**
-- Base image: `<image>` element with base64 data
-- Overlays: `<ellipse>`, `<rect>`, `<text>` elements
-- Can extract/edit independently
-
-### ✅ **Editability**
-- Open SVG in Inkscape/Illustrator
-- Change shape colors: edit `fill="#FF0000"`
-- Move shapes: edit `x`, `y`, `cx`, `cy`
-- Edit text: change text content
-- Add/remove shapes: add/remove `<g>` elements
-
-### ✅ **Extractability**
+### **Extractability**
 
 **Get base image:**
+
 ```python
 # Parse SVG
 tree = ET.parse('file.svg')
@@ -369,6 +319,7 @@ png_bytes = base64.b64decode(base64_data)
 ```
 
 **Get shapes:**
+
 ```python
 overlays = tree.find('.//g[@id="overlays"]')
 shapes = overlays.findall('.//g[@class="shape-overlay"]')
@@ -379,14 +330,15 @@ for shape in shapes:
     # ... extract properties
 ```
 
-### ✅ **Standards-Based**
+### **Standards-Based**
+
 - Uses standard SVG 1.1 spec
 - Works with all SVG tools
 - Can convert to other formats (PDF, PNG, etc.) while preserving structure
 
 ---
 
-## 🎬 Complete Flow Diagram
+## Complete Flow Diagram
 
 ```
 Excel File (sample.xlsx)
@@ -432,7 +384,7 @@ Utilities (optional)
 
 ---
 
-## 🧪 Example: What Happens to "Shape 4"
+## Example: What Happens to "Shape 4"
 
 1. **Excel:** Shape at cell D2, offset 123456 EMU, size 952500x419100 EMU
 2. **Convert:** Position (375, 140) px, size (100, 44) px
@@ -476,86 +428,47 @@ python3 extract.py
 ```
 
 **Output:**
+
 - `images_with_positions/*.png` - Individual extracted images
 - `images_with_overlays/*.svg` - SVG files with embedded images + overlays
 - `images_with_overlays/*.jpg` - Rasterized preview files
 
-### Extract Components (Optional)
-
-```bash
-# View SVG component details
-python3 extract_svg_components.py
-
-# Separate into individual layers
-python3 separate_svg_layers.py
-```
-
 **Output:**
+
 - `separated_layers/*_base_image.png` - Extracted base images
 - `separated_layers/*_overlays_only.svg` - Overlays without base image
 - `separated_layers/*_shape_*.svg` - Individual shape SVGs
 
 ---
 
-## 📂 Project Structure
-
-```
-attemptv2/
-├── extract.py                          # Main script
-├── extract_svg_components.py       # Utility: inspect SVG structure
-├── separate_svg_layers.py          # Utility: separate layers
-├── sample.xlsx                     # Input Excel file
-├── README.md                       # This file
-├── SVG_SOLUTION.md                 # Technical documentation
-│
-├── images_with_positions/          # Extracted individual images
-├── images_with_overlays/           # SVG + JPG composites
-└── separated_layers/               # Separated components
-```
-
----
-
-## 🔑 Key Features
-
-- ✅ **Separation** - Base image and overlays remain completely independent
-- ✅ **Editability** - All overlays can be edited in vector editors
-- ✅ **Scalability** - SVG is resolution-independent
-- ✅ **Extractability** - Components can be extracted programmatically
-- ✅ **Standards-based** - Uses standard SVG format, compatible with all tools
-- ✅ **Self-contained** - No external dependencies (base64 embedding)
-- ✅ **Correct scaling** - Shapes positioned accurately on high-res images
-- ✅ **All properties preserved** - Colors, fonts, transparency, geometry
-
----
-
-## 📖 Documentation
+## Documentation
 
 - **README.md** (this file) - Complete walkthrough and usage guide
-- **SVG_SOLUTION.md** - Technical documentation and API reference
 
 ---
 
-## 🎯 Result
+## Result
 
 You now have:
-- ✅ SVG files with **embedded base images** (base64)
-- ✅ **Editable shape overlays** as native SVG elements
-- ✅ **Complete separation** - can extract/edit components independently
-- ✅ **Correct scaling** - shapes positioned accurately on high-res images
-- ✅ **All properties preserved** - colors, fonts, transparency, geometry
-- ✅ **Standard format** - works with all SVG tools
-- ✅ **Self-contained** - no external dependencies
+
+- SVG files with **embedded base images** (base64)
+- **Editable shape overlays** as native SVG elements
+- **Complete separation** - can extract/edit components independently
+- **Correct scaling** - shapes positioned accurately on high-res images
+- **All properties preserved** - colors, fonts, transparency, geometry
+- **Standard format** - works with all SVG tools
+- **Self-contained** - no external dependencies
 
 The goal of **keeping base images and overlays separate even after export** is fully achieved! 🎉
 
 ---
 
-## 📝 License
+## License
 
 This project is provided as-is for educational and commercial use.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Feel free to submit issues, fork the repository, and create pull requests for any improvements.
